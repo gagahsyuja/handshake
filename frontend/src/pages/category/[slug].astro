@@ -1,0 +1,223 @@
+---
+import MainLayout from "../../layouts/MainLayout.astro";
+import { getCategories } from "../../utils/api";
+
+// Pre-render all category pages at build time (static output).
+export async function getStaticPaths() {
+  const categories = await getCategories();
+  return categories.map((c) => ({
+    params: { slug: c.slug },
+  }));
+}
+
+const slug = Astro.params.slug ?? "";
+const safeSlug = String(slug);
+---
+
+<MainLayout title={`Category: ${safeSlug} - Handshake`}>
+  <div class="py-12 px-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="mb-8">
+        <a href="/" class="text-sm text-gray-600 hover:text-primary transition">← Back to Home</a>
+        <h1 class="text-3xl font-bold mt-2">
+          Category: <span class="text-primary" id="category-name">{safeSlug}</span>
+        </h1>
+        <p class="text-gray-600 mt-2" id="category-subtitle">
+          Browse products in this category.
+        </p>
+      </div>
+
+      <!-- Loading -->
+      <div id="loading" class="text-center py-20">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p class="mt-4 text-gray-600">Loading products...</p>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="hidden">
+        <div class="flex items-center justify-between mb-6">
+          <p class="text-sm text-gray-600">
+            <span class="font-semibold text-gray-900" id="count">0</span> products found
+          </p>
+
+          <div class="flex gap-2">
+            <a href="/products" class="btn btn-secondary btn-sm">Browse All</a>
+            <a href="/sell" class="btn btn-primary btn-sm">Sell</a>
+          </div>
+        </div>
+
+        <div
+          id="grid"
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+        ></div>
+      </div>
+
+      <!-- Empty -->
+      <div id="empty" class="hidden card p-12 text-center">
+        <div class="text-6xl mb-4">🗂️</div>
+        <h2 class="text-2xl font-bold mb-2">No Products Yet</h2>
+        <p class="text-gray-600 mb-6">
+          There are no products in this category yet. Be the first to list one!
+        </p>
+        <div class="flex gap-3 justify-center flex-wrap">
+          <a href="/sell" class="btn btn-primary">List a Product</a>
+          <a href="/" class="btn btn-secondary">Back to Home</a>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="error" class="hidden card p-8 text-center">
+        <div class="text-6xl mb-4">❌</div>
+        <h2 class="text-2xl font-bold mb-2">Failed to Load Category</h2>
+        <p class="text-gray-600 mb-6" id="error-message">
+          Something went wrong while loading products for this category.
+        </p>
+        <div class="flex gap-3 justify-center flex-wrap">
+          <button id="retry" class="btn btn-primary">Retry</button>
+          <a href="/" class="btn btn-secondary">Back to Home</a>
+        </div>
+      </div>
+
+      <!-- Invalid slug -->
+      <div id="invalid" class="hidden card p-8 text-center">
+        <div class="text-6xl mb-4">⚠️</div>
+        <h2 class="text-2xl font-bold mb-2">Invalid Category</h2>
+        <p class="text-gray-600 mb-6">
+          The category URL is invalid.
+        </p>
+        <a href="/" class="btn btn-primary">Back to Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { getCategoryProducts, getCategories, type Product, type Category } from "../../utils/api";
+
+    const slug = window.location.pathname.split("/").filter(Boolean).pop() || "";
+
+    const loading = document.getElementById("loading");
+    const results = document.getElementById("results");
+    const grid = document.getElementById("grid");
+    const empty = document.getElementById("empty");
+    const error = document.getElementById("error");
+    const invalid = document.getElementById("invalid");
+    const errorMessage = document.getElementById("error-message");
+    const retryBtn = document.getElementById("retry");
+    const countEl = document.getElementById("count");
+    const categoryNameEl = document.getElementById("category-name");
+    const categorySubtitleEl = document.getElementById("category-subtitle");
+
+    function show(el: Element | null) { el?.classList.remove("hidden"); }
+    function hide(el: Element | null) { el?.classList.add("hidden"); }
+
+    function resetState() {
+      hide(results);
+      hide(empty);
+      hide(error);
+      hide(invalid);
+      show(loading);
+
+      if (grid) grid.innerHTML = "";
+      if (countEl) countEl.textContent = "0";
+      if (errorMessage) errorMessage.textContent = "Something went wrong while loading products for this category.";
+    }
+
+    function renderProducts(products: Product[]) {
+      if (!grid) return;
+
+      grid.innerHTML = products.map((p: Product) => `
+        <a href="/product/${p.id}" class="card block group">
+          <div class="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+            ${p.image_url
+              ? `<img src="${p.image_url}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover group-hover:scale-105 transition" />`
+              : '<div class="text-6xl opacity-30">📦</div>'
+            }
+          </div>
+          <div class="p-4">
+            <div class="mb-2">
+              <span class="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                ${escapeHtml(p.category_name)}
+              </span>
+            </div>
+            <h3 class="font-medium mb-1 truncate group-hover:text-primary transition">
+              ${escapeHtml(p.title)}
+            </h3>
+            <p class="text-lg font-bold text-primary mb-2">
+              Rp ${Number(p.price).toLocaleString()}
+            </p>
+            <span class="inline-block bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded">
+              COD Available
+            </span>
+          </div>
+        </a>
+      `).join("");
+    }
+
+    function escapeHtml(str: string) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function loadCategoryMeta() {
+      // Optional: getCategories() to show friendly name + icon (if exists)
+      try {
+        const categories = await getCategories();
+        const match = categories.find((c) => c.slug === slug);
+        if (match) {
+          if (categoryNameEl) categoryNameEl.textContent = match.name;
+          if (categorySubtitleEl) categorySubtitleEl.textContent = `Browse products in "${match.name}".`;
+        } else {
+          // Keep slug as fallback
+          if (categoryNameEl) categoryNameEl.textContent = slug || "unknown";
+        }
+      } catch {
+        // Non-fatal; keep slug
+        if (categoryNameEl) categoryNameEl.textContent = slug || "unknown";
+      }
+    }
+
+    async function load() {
+      resetState();
+
+      if (!slug || slug.includes("..")) {
+        hide(loading);
+        show(invalid);
+        return;
+      }
+
+      await loadCategoryMeta();
+
+      try {
+        const products = await getCategoryProducts(slug, 200);
+
+        hide(loading);
+
+        if (!Array.isArray(products) || products.length === 0) {
+          show(empty);
+          return;
+        }
+
+        if (countEl) countEl.textContent = String(products.length);
+        renderProducts(products);
+        show(results);
+      } catch (e) {
+        console.error("Failed to load category products:", e);
+        hide(loading);
+        if (errorMessage) {
+          errorMessage.textContent = `Failed to load products for category "${slug}". Please try again.`;
+        }
+        show(error);
+      }
+    }
+
+    retryBtn?.addEventListener("click", () => {
+      load();
+    });
+
+    load();
+  </script>
+</MainLayout>
