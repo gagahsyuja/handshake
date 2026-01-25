@@ -1,8 +1,17 @@
 ---
+import type { GetStaticPaths } from "astro";
 import MainLayout from '../../layouts/MainLayout.astro';
+import { getProducts } from '../../utils/api';
 
-const productIdParam = Astro.params.id;
-const productId = Number(productIdParam);
+export async function getStaticPaths() {
+	const products = await getProducts(undefined, 1000);
+	return products.map(p => ({
+	  params: { id: String(p.id) }
+	}));
+};
+
+const { id } = Astro.params;
+const productId = Number(id);
 const isValidProductId = Number.isInteger(productId) && productId > 0;
 ---
 
