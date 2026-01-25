@@ -15,7 +15,7 @@ const productId = Number(id);
 const isValidProductId = Number.isInteger(productId) && productId > 0;
 ---
 
-<MainLayout title={`Product ${isValidProductId ? `#${productId}` : ''} - Xendit`}>
+<MainLayout title={`Product ${isValidProductId ? `#${productId}` : ''} - Handshake`}>
   <div class="min-h-[80vh] py-12 px-6">
     <div id="page-root" data-product-id={isValidProductId ? String(productId) : ''}>
     <div id="loading" class="max-w-7xl mx-auto text-center py-20">
