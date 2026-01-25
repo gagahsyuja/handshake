@@ -1,0 +1,300 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+---
+
+<MainLayout title="My Orders - Handshake">
+  <div class="min-h-[80vh] py-12 px-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">My Orders</h1>
+        <p class="text-gray-600">Track your purchases and sales</p>
+      </div>
+
+      <div id="auth-required" class="hidden card p-8 text-center">
+        <div class="text-6xl mb-4">🔒</div>
+        <h2 class="text-2xl font-bold mb-2">Authentication Required</h2>
+        <p class="text-gray-600 mb-6">You need to login to view your orders</p>
+        <a href="/login" class="btn btn-primary">Login Now</a>
+      </div>
+
+      <div id="loading" class="hidden text-center py-20">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p class="mt-4 text-gray-600">Loading orders...</p>
+      </div>
+
+      <div id="orders-container" class="hidden">
+        <div class="grid gap-6">
+          <!-- Orders will be loaded here -->
+        </div>
+      </div>
+
+      <div id="empty-state" class="hidden card p-12 text-center">
+        <div class="text-6xl mb-4">📦</div>
+        <h2 class="text-2xl font-bold mb-2">No Orders Yet</h2>
+        <p class="text-gray-600 mb-6">Start shopping to see your orders here</p>
+        <a href="/" class="btn btn-primary">Browse Products</a>
+      </div>
+
+      <div id="error-state" class="hidden card p-8 text-center">
+        <div class="text-6xl mb-4">❌</div>
+        <h2 class="text-2xl font-bold mb-2">Failed to Load Orders</h2>
+        <p class="text-gray-600 mb-6">Something went wrong. Please try again.</p>
+        <button onclick="window.location.reload()" class="btn btn-primary">Retry</button>
+      </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div id="order-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Order Details</h2>
+            <button id="close-modal" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          </div>
+        </div>
+
+        <div id="modal-content" class="p-6">
+          <!-- Order details will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { getToken, getUser, getMyOrders, getOrder, type Order } from '../utils/api';
+
+    const token = getToken();
+    const user = getUser();
+    const authRequired = document.getElementById('auth-required');
+    const loading = document.getElementById('loading');
+    const ordersContainer = document.getElementById('orders-container');
+    const emptyState = document.getElementById('empty-state');
+    const errorState = document.getElementById('error-state');
+    const orderModal = document.getElementById('order-modal');
+
+    // Check authentication
+    if (!token || !user) {
+      authRequired?.classList.remove('hidden');
+    } else {
+      loadOrders();
+    }
+
+    async function loadOrders() {
+      if (!token) return;
+
+      loading?.classList.remove('hidden');
+
+      try {
+        const orders = await getMyOrders(token);
+
+        loading?.classList.add('hidden');
+
+        if (orders.length === 0) {
+          emptyState?.classList.remove('hidden');
+          return;
+        }
+
+        ordersContainer?.classList.remove('hidden');
+        const container = ordersContainer?.querySelector('.grid') as HTMLElement;
+
+        if (!container) return;
+
+        container.innerHTML = orders.map((order: any) => {
+          const isBuyer = order.buyer_id === user?.id;
+          const role = isBuyer ? 'Buyer' : 'Seller';
+          const roleColor = isBuyer ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
+          const statusColor = order.status === 'pending'
+            ? 'bg-yellow-100 text-yellow-800'
+            : order.status === 'completed'
+            ? 'bg-green-100 text-green-800'
+            : 'bg-gray-100 text-gray-800';
+
+          return `
+            <div class="card p-6 cursor-pointer hover:shadow-lg transition" data-order-id="${order.id}">
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <div class="flex gap-2 mb-2">
+                    <span class="text-xs font-semibold px-2 py-1 rounded ${roleColor}">
+                      ${role}
+                    </span>
+                    <span class="text-xs font-semibold px-2 py-1 rounded ${statusColor}">
+                      ${order.status}
+                    </span>
+                  </div>
+                  <h3 class="text-lg font-semibold">Order #${order.id}</h3>
+                  <p class="text-sm text-gray-500">Product ID: ${order.product_id}</p>
+                </div>
+                <button class="text-primary hover:text-primary-dark font-medium text-sm">
+                  View Details →
+                </button>
+              </div>
+
+              <div class="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p class="font-medium text-gray-700 mb-1">
+                    ${isBuyer ? 'Seller Location' : 'Buyer Location'}
+                  </p>
+                  <p class="text-gray-600 text-xs">
+                    ${isBuyer ? order.seller_location?.address || 'N/A' : order.buyer_location?.address || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-700 mb-1">Meeting Point</p>
+                  <p class="text-gray-600 text-xs">
+                    ${order.midpoint_info ?
+                      `Distance: ${order.midpoint_info.distance_to_buyer_km.toFixed(1)}km from buyer, ${order.midpoint_info.distance_to_seller_km.toFixed(1)}km from seller`
+                      : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Add click handlers
+        container.querySelectorAll('[data-order-id]').forEach(card => {
+          card.addEventListener('click', () => {
+            const orderId = parseInt(card.getAttribute('data-order-id') || '0');
+            showOrderDetails(orderId);
+          });
+        });
+
+      } catch (error) {
+        console.error('Failed to load orders:', error);
+        loading?.classList.add('hidden');
+        errorState?.classList.remove('hidden');
+      }
+    }
+
+    async function showOrderDetails(orderId: number) {
+      if (!token) return;
+
+      orderModal?.classList.remove('hidden');
+      const modalContent = document.getElementById('modal-content');
+      if (!modalContent) return;
+
+      modalContent.innerHTML = `
+        <div class="text-center py-8">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p class="mt-2 text-gray-600">Loading...</p>
+        </div>
+      `;
+
+      try {
+        const order: Order = await getOrder(token, orderId);
+        const isBuyer = order.buyer_id === user?.id;
+
+        modalContent.innerHTML = `
+          <div class="space-y-6">
+            <div class="flex gap-3">
+              <span class="text-xs font-semibold px-3 py-1 rounded ${isBuyer ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+                ${isBuyer ? 'Buyer' : 'Seller'}
+              </span>
+              <span class="text-xs font-semibold px-3 py-1 rounded ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                ${order.status}
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-lg font-semibold mb-3">Order Information</h3>
+              <div class="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Order ID:</span>
+                  <span class="font-medium">#${order.id}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Product ID:</span>
+                  <span class="font-medium">#${order.product_id}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Buyer ID:</span>
+                  <span class="font-medium">#${order.buyer_id}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Seller ID:</span>
+                  <span class="font-medium">#${order.seller_id}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="text-lg font-semibold mb-3">Locations</h3>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="border border-gray-200 rounded-lg p-4">
+                  <p class="font-medium text-gray-900 mb-2">Buyer Location</p>
+                  <p class="text-sm text-gray-600 mb-2">${order.buyer_location.address}</p>
+                  <p class="text-xs text-gray-500">
+                    ${order.buyer_location.latitude.toFixed(4)}, ${order.buyer_location.longitude.toFixed(4)}
+                  </p>
+                </div>
+                <div class="border border-gray-200 rounded-lg p-4">
+                  <p class="font-medium text-gray-900 mb-2">Seller Location</p>
+                  <p class="text-sm text-gray-600 mb-2">${order.seller_location.address}</p>
+                  <p class="text-xs text-gray-500">
+                    ${order.seller_location.latitude.toFixed(4)}, ${order.seller_location.longitude.toFixed(4)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="text-lg font-semibold mb-3">Meeting Point</h3>
+              <div class="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <div class="flex items-start gap-3 mb-3">
+                  <span class="text-2xl">📍</span>
+                  <div>
+                    <p class="font-medium text-gray-900 mb-1">Calculated Midpoint</p>
+                    <p class="text-sm text-gray-600">
+                      ${order.midpoint_info.midpoint.latitude.toFixed(4)}, ${order.midpoint_info.midpoint.longitude.toFixed(4)}
+                    </p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3 text-sm">
+                  <div class="bg-white rounded p-3">
+                    <p class="text-gray-600 text-xs mb-1">Distance from Buyer</p>
+                    <p class="font-semibold text-primary">${order.midpoint_info.distance_to_buyer_km.toFixed(2)} km</p>
+                  </div>
+                  <div class="bg-white rounded p-3">
+                    <p class="text-gray-600 text-xs mb-1">Distance from Seller</p>
+                    <p class="font-semibold text-primary">${order.midpoint_info.distance_to_seller_km.toFixed(2)} km</p>
+                  </div>
+                  <div class="bg-white rounded p-3">
+                    <p class="text-gray-600 text-xs mb-1">Total Distance</p>
+                    <p class="font-semibold text-primary">${order.midpoint_info.total_distance_km.toFixed(2)} km</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <a href="https://www.google.com/maps?q=${order.midpoint_info.midpoint.latitude},${order.midpoint_info.midpoint.longitude}"
+                 target="_blank"
+                 class="btn btn-primary flex-1">
+                <span>🗺️</span>
+                Open in Maps
+              </a>
+              <button id="close-modal-btn" class="btn btn-secondary">Close</button>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('close-modal-btn')?.addEventListener('click', closeModal);
+
+      } catch (error) {
+        console.error('Failed to load order details:', error);
+        modalContent.innerHTML = `
+          <div class="text-center py-8">
+            <div class="text-4xl mb-3">❌</div>
+            <p class="text-gray-600">Failed to load order details</p>
+          </div>
+        `;
+      }
+    }
+
+    function closeModal() {
+      orderModal?.classList.add('hidden');
+    }
+
+    document.getElementById('close-modal')?.addEventListener('click', closeModal);
+  </script>
+</MainLayout>

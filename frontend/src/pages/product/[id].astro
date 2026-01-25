@@ -1,0 +1,387 @@
+---
+import MainLayout from '../../layouts/MainLayout.astro';
+
+const productIdParam = Astro.params.id;
+const productId = Number(productIdParam);
+const isValidProductId = Number.isInteger(productId) && productId > 0;
+---
+
+<MainLayout title={`Product ${isValidProductId ? `#${productId}` : ''} - Xendit`}>
+  <div class="min-h-[80vh] py-12 px-6">
+    <div id="page-root" data-product-id={isValidProductId ? String(productId) : ''}>
+    <div id="loading" class="max-w-7xl mx-auto text-center py-20">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <p class="mt-4 text-gray-600">Loading product...</p>
+    </div>
+
+    <div id="error-container" class="hidden max-w-7xl mx-auto">
+      <div class="card p-8 text-center">
+        <div class="text-6xl mb-4">❌</div>
+        <h2 class="text-2xl font-bold mb-2">Product Not Found</h2>
+        <p class="text-gray-600 mb-6">The product you're looking for doesn't exist</p>
+        <a href="/" class="btn btn-primary">Back to Home</a>
+      </div>
+    </div>
+
+    <div id="product-container" class="hidden max-w-7xl mx-auto">
+      <div class="grid md:grid-cols-2 gap-12">
+        <!-- Product Image -->
+        <div>
+          <div id="product-image" class="aspect-square bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden sticky top-24">
+            <div class="text-9xl opacity-30">📦</div>
+          </div>
+        </div>
+
+        <!-- Product Details -->
+        <div>
+          <div class="mb-4">
+            <span id="product-category" class="inline-block text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full"></span>
+          </div>
+
+          <h1 id="product-title" class="text-4xl font-bold mb-4"></h1>
+
+          <div class="flex items-baseline gap-2 mb-6">
+            <span class="text-4xl font-bold text-primary" id="product-price"></span>
+            <span class="inline-flex items-center gap-1 bg-green-500 text-white text-sm font-semibold px-3 py-1 rounded-full">
+              <span>✓</span>
+              COD Available
+            </span>
+          </div>
+
+          <div class="mb-8">
+            <h2 class="text-lg font-semibold mb-3">Description</h2>
+            <p id="product-description" class="text-gray-700 leading-relaxed whitespace-pre-wrap"></p>
+          </div>
+
+          <div class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 class="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              <span>📍</span>
+              How COD Works
+            </h3>
+            <p class="text-sm text-blue-800">
+              When you place an order, we'll calculate a midpoint between you and the seller.
+              Meet at this convenient location to complete your cash-on-delivery transaction safely!
+            </p>
+          </div>
+
+          <div id="buyer-section" class="hidden space-y-4">
+            <button id="buy-now-btn" class="btn btn-primary btn-lg w-full">
+              <span>🛒</span>
+              Buy Now with COD
+            </button>
+          </div>
+
+          <div id="seller-section" class="hidden">
+            <div class="card p-6 bg-gray-50">
+              <p class="text-center text-gray-600">
+                <span class="font-semibold">This is your product</span><br>
+                You cannot purchase your own listing
+              </p>
+            </div>
+          </div>
+
+          <div id="login-section" class="hidden">
+            <a href="/login" class="btn btn-primary btn-lg w-full">
+              Login to Purchase
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="order-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Complete Your Order</h2>
+            <button id="close-modal" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <div>
+            <h3 class="font-semibold mb-3">Enter Your Location</h3>
+            <div class="space-y-3">
+              <input
+                type="text"
+                id="address-input"
+                class="input"
+                placeholder="Enter your address or city"
+              />
+              <button id="geocode-btn" class="btn btn-secondary w-full">
+                <span>📍</span>
+                Find My Location
+              </button>
+              <button id="use-current-location" class="btn btn-secondary w-full">
+                <span>🎯</span>
+                Use Current Location
+              </button>
+            </div>
+          </div>
+
+          <div id="location-result" class="hidden">
+            <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p class="text-sm font-semibold text-green-900 mb-1">Location Found:</p>
+              <p id="found-address" class="text-sm text-green-800"></p>
+            </div>
+          </div>
+
+          <div id="order-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+          <div class="flex gap-3">
+            <button id="confirm-order-btn" class="btn btn-primary flex-1" disabled>
+              Confirm Order
+            </button>
+            <button id="cancel-order-btn" class="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+      <div class="bg-white rounded-xl max-w-md w-full p-8 text-center">
+        <div class="text-6xl mb-4">✅</div>
+        <h2 class="text-2xl font-bold mb-2">Order Placed!</h2>
+        <p class="text-gray-600 mb-6">Your order has been successfully created</p>
+        <div class="flex gap-3">
+          <a href="/orders" class="btn btn-primary flex-1">View Orders</a>
+          <a href="/" class="btn btn-secondary flex-1">Continue Shopping</a>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    import { getProduct, getToken, getUser, createOrder, geocodeAddress, reverseGeocode, type Product } from '../../utils/api';
+
+    const pageRoot = document.getElementById('page-root') as HTMLElement | null;
+    const productIdRaw = pageRoot?.dataset.productId ?? '';
+    const productId = Number(productIdRaw);
+
+    const token = getToken();
+    const user = getUser();
+
+    const loading = document.getElementById('loading');
+    const errorContainer = document.getElementById('error-container');
+    const productContainer = document.getElementById('product-container');
+    const buyerSection = document.getElementById('buyer-section');
+    const sellerSection = document.getElementById('seller-section');
+    const loginSection = document.getElementById('login-section');
+    const orderModal = document.getElementById('order-modal');
+    const successModal = document.getElementById('success-modal');
+    const orderError = document.getElementById('order-error');
+    const locationResult = document.getElementById('location-result');
+
+    const geocodeBtn = document.getElementById('geocode-btn') as HTMLButtonElement | null;
+    const useCurrentLocationBtn = document.getElementById('use-current-location') as HTMLButtonElement | null;
+    const confirmOrderBtn = document.getElementById('confirm-order-btn') as HTMLButtonElement;
+    const buyNowBtn = document.getElementById('buy-now-btn') as HTMLButtonElement | null;
+
+    let currentProduct: Product | null = null;
+    let buyerLocation: { latitude: number; longitude: number; address: string } | null = null;
+
+    function showNotFound() {
+      loading?.classList.add('hidden');
+      productContainer?.classList.add('hidden');
+      errorContainer?.classList.remove('hidden');
+    }
+
+    function setButtonLoading(btn: HTMLButtonElement, isLoading: boolean, label: string) {
+      if (isLoading) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>${label}</span>`;
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = label;
+      }
+    }
+
+    // Load product
+    async function loadProduct() {
+      if (!Number.isInteger(productId) || productId <= 0) {
+        showNotFound();
+        return;
+      }
+
+      try {
+        const product = await getProduct(productId);
+        currentProduct = product;
+
+        // Update UI
+        document.getElementById('product-title')!.textContent = product.title;
+        document.getElementById('product-price')!.textContent = `Rp ${product.price.toLocaleString()}`;
+        document.getElementById('product-category')!.textContent = product.category_name;
+        document.getElementById('product-description')!.textContent = product.description;
+
+        // Update image
+        const imageContainer = document.getElementById('product-image')!;
+        if (product.image_url) {
+          imageContainer.innerHTML = `<img src="${product.image_url}" alt="${product.title}" class="w-full h-full object-cover" />`;
+        }
+
+        // Show appropriate section
+        if (!token) {
+          loginSection?.classList.remove('hidden');
+        } else if (user && product.seller_id === user.id) {
+          sellerSection?.classList.remove('hidden');
+        } else {
+          buyerSection?.classList.remove('hidden');
+        }
+
+        loading?.classList.add('hidden');
+        productContainer?.classList.remove('hidden');
+      } catch (error) {
+        console.error('Failed to load product:', error);
+        loading?.classList.add('hidden');
+        errorContainer?.classList.remove('hidden');
+      }
+    }
+
+    // Buy now button
+    buyNowBtn?.addEventListener('click', () => {
+      orderModal?.classList.remove('hidden');
+    });
+
+    // Close modal
+    function closeModal() {
+      orderModal?.classList.add('hidden');
+      buyerLocation = null;
+      locationResult?.classList.add('hidden');
+      orderError?.classList.add('hidden');
+      (document.getElementById('address-input') as HTMLInputElement).value = '';
+      confirmOrderBtn.disabled = true;
+    }
+
+    document.getElementById('close-modal')?.addEventListener('click', closeModal);
+    document.getElementById('cancel-order-btn')?.addEventListener('click', closeModal);
+
+    // Geocode address
+    geocodeBtn?.addEventListener('click', async () => {
+      const addressInput = document.getElementById('address-input') as HTMLInputElement;
+      const address = addressInput.value.trim();
+
+      if (!address) {
+        if (orderError) {
+          orderError.textContent = 'Please enter an address';
+          orderError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      orderError?.classList.add('hidden');
+
+      const original = geocodeBtn.innerHTML;
+      setButtonLoading(geocodeBtn, true, 'Searching...');
+
+      try {
+        const result = await geocodeAddress(address);
+        buyerLocation = result;
+
+        document.getElementById('found-address')!.textContent = result.address;
+        locationResult?.classList.remove('hidden');
+        confirmOrderBtn.disabled = false;
+      } catch (error) {
+        console.error('Geocoding failed:', error);
+        if (orderError) {
+          orderError.textContent = 'Could not find location. Please try a different address.';
+          orderError.classList.remove('hidden');
+        }
+        geocodeBtn.innerHTML = original;
+      } finally {
+        geocodeBtn.disabled = false;
+        geocodeBtn.innerHTML = '<span>📍</span> Find My Location';
+      }
+    });
+
+    // Use current location
+    useCurrentLocationBtn?.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        if (orderError) {
+          orderError.textContent = 'Geolocation is not supported by your browser';
+          orderError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      orderError?.classList.add('hidden');
+
+      const original = useCurrentLocationBtn.innerHTML;
+      setButtonLoading(useCurrentLocationBtn, true, 'Getting location...');
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const result = await reverseGeocode(
+              position.coords.latitude,
+              position.coords.longitude
+            );
+            buyerLocation = result;
+
+            document.getElementById('found-address')!.textContent = result.address;
+            locationResult?.classList.remove('hidden');
+            confirmOrderBtn.disabled = false;
+          } catch (error) {
+            console.error('Reverse geocoding failed:', error);
+            if (orderError) {
+              orderError.textContent = 'Could not get address from your location';
+              orderError.classList.remove('hidden');
+            }
+            useCurrentLocationBtn.innerHTML = original;
+          } finally {
+            useCurrentLocationBtn.disabled = false;
+            useCurrentLocationBtn.innerHTML = '<span>🎯</span> Use Current Location';
+          }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          if (orderError) {
+            orderError.textContent = 'Could not access your location. Please check permissions.';
+            orderError.classList.remove('hidden');
+          }
+          useCurrentLocationBtn.disabled = false;
+          useCurrentLocationBtn.innerHTML = '<span>🎯</span> Use Current Location';
+        }
+      );
+    });
+
+    // Confirm order
+    confirmOrderBtn?.addEventListener('click', async () => {
+      if (!token || !currentProduct || !buyerLocation) return;
+
+      orderError?.classList.add('hidden');
+      setButtonLoading(confirmOrderBtn, true, 'Creating order...');
+
+      try {
+        await createOrder(token, {
+          product_id: currentProduct.id,
+          seller_id: currentProduct.seller_id,
+          buyer_location: buyerLocation,
+        });
+
+        orderModal?.classList.add('hidden');
+        successModal?.classList.remove('hidden');
+      } catch (error) {
+        console.error('Failed to create order:', error);
+        if (orderError) {
+          orderError.textContent = 'Failed to create order. Please try again.';
+          orderError.classList.remove('hidden');
+        }
+        confirmOrderBtn.disabled = false;
+        confirmOrderBtn.textContent = 'Confirm Order';
+      } finally {
+        if (successModal?.classList.contains('hidden')) {
+          confirmOrderBtn.disabled = false;
+          confirmOrderBtn.textContent = 'Confirm Order';
+        }
+      }
+    });
+
+    // Load product on page load
+    loadProduct();
+  </script>
+</MainLayout>

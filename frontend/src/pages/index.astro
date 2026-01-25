@@ -1,0 +1,89 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+import { getCategories } from '../utils/api';
+
+const categories = await getCategories();
+---
+
+<MainLayout title="Handshake - Buy & Sell with COD">
+  <section class="bg-gradient-to-r from-primary to-secondary text-white py-16">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <h1 class="text-5xl font-bold mb-4">Buy & Sell Anything, Anywhere</h1>
+      <p class="text-xl mb-8 opacity-90">
+        Meet in the middle with our smart COD system
+      </p>
+      <div class="flex gap-4 justify-center flex-wrap">
+        <a href="/products" class="bg-white text-primary px-8 py-4 rounded-lg font-semibold hover:shadow-lg transition">
+          Browse Products
+        </a>
+        <a href="/sell" class="bg-primary-dark text-white px-8 py-4 rounded-lg font-semibold hover:shadow-lg transition">
+          Start Selling
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-16">
+    <div class="max-w-7xl mx-auto px-6">
+      <h2 class="text-3xl font-bold mb-8">Shop by Category</h2>
+
+      {categories.map((category) => (
+        <div class="mb-12">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-semibold flex items-center gap-2">
+              <span class="text-3xl">{category.icon}</span>
+              {category.name}
+            </h3>
+            <a href={`/category/${category.slug}`} class="text-primary font-medium hover:underline">
+              View All →
+            </a>
+          </div>
+
+          <div id={`products-${category.slug}`} class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+            <p class="text-gray-500">Loading products...</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <script>
+    import { getCategoryProducts, type Product } from '../utils/api';
+
+    const categories = document.querySelectorAll('[id^="products-"]');
+
+    categories.forEach(async (container) => {
+      const slug = container.id.replace('products-', '');
+
+      try {
+        const products: Product[] = await getCategoryProducts(slug, 6);
+
+        if (products.length === 0) {
+          container.innerHTML = '<p class="text-gray-500">No products yet</p>';
+          return;
+        }
+
+        container.innerHTML = products.map((product) => `
+          <a href="/product/${product.id}" class="card block group">
+            <div class="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+              ${product.image_url
+                ? `<img src="${product.image_url}" alt="${product.title}" class="w-full h-full object-cover group-hover:scale-105 transition" />`
+                : '<div class="text-6xl opacity-30">📦</div>'
+              }
+            </div>
+            <div class="p-4">
+              <h4 class="font-medium mb-1 truncate">${product.title}</h4>
+              <p class="text-lg font-bold text-primary mb-2">Rp ${product.price.toLocaleString()}</p>
+              <span class="inline-block bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                COD Available
+              </span>
+            </div>
+          </a>
+        `).join('');
+      } catch (error) {
+        console.error(`Failed to load products for ${slug}:`, error);
+        container.innerHTML = '<p class="text-gray-500">Failed to load products</p>';
+      }
+    });
+  </script>
+</MainLayout>

@@ -1,0 +1,57 @@
+/*@tailwind base;
+@tailwind components;
+@tailwind utilities;*/
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #2e3b45;
+  --color-secondary: #2a3b45;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-2 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200;
+  }
+
+  .btn:disabled {
+    @apply opacity-60 cursor-not-allowed hover:shadow-none hover:translate-y-0;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary to-secondary text-white hover:-translate-y-0.5 hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-primary border-2 border-gray-200 hover:border-primary;
+  }
+
+  .btn-sm {
+    @apply px-4 py-1.5 text-xs;
+  }
+
+  .btn-lg {
+    @apply px-8 py-4 text-base;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm transition-all duration-200 overflow-hidden hover:shadow-md hover:-translate-y-0.5;
+  }
+
+  .input {
+    @apply w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-lg transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10;
+  }
+
+  /* Loading spinner for buttons and inline loading states */
+  .spinner {
+    @apply inline-block h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin;
+  }
+
+  .spinner-sm {
+    @apply h-3 w-3 border-2;
+  }
+
+  .spinner-lg {
+    @apply h-5 w-5 border-2;
+  }
+}

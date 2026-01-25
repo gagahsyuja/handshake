@@ -1,0 +1,79 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+}
+
+const { title = 'Handshake Marketplace' } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  </head>
+  <body class="bg-gray-50">
+    <header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-6">
+        <nav class="flex items-center justify-between py-4">
+          <a href="/" class="flex items-center gap-2 text-2xl font-bold text-gray-900">
+            <span class="text-3xl">🛒</span>
+            <span>Handshake</span>
+          </a>
+
+          <div class="hidden md:flex gap-8">
+            <a href="/products" class="font-medium text-gray-600 hover:text-primary transition">Browse</a>
+            <a href="/sell" class="font-medium text-gray-600 hover:text-primary transition">Sell</a>
+            <a href="/orders" class="font-medium text-gray-600 hover:text-primary transition">Orders</a>
+          </div>
+
+          <div class="flex gap-2" id="nav-auth">
+            <a href="/login" class="btn btn-secondary btn-sm">Login</a>
+            <a href="/register" class="btn btn-primary btn-sm">Sign Up</a>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="min-h-[calc(100vh-200px)]">
+      <slot />
+    </main>
+
+    <footer class="mt-16 py-8 border-t border-gray-200">
+      <div class="max-w-7xl mx-auto px-6">
+        <p class="text-center text-gray-500 text-sm">
+          © 2026 Handshake Marketplace. Built with microservices architecture.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      const token = localStorage.getItem('auth_token');
+      const user = localStorage.getItem('user');
+
+      if (token && user) {
+        const userData = JSON.parse(user);
+        const navAuth = document.getElementById('nav-auth');
+        if (navAuth) {
+          navAuth.innerHTML = `
+            <span class="text-sm text-gray-600">${userData.name}</span>
+            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+          `;
+        }
+      }
+
+      function logout() {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+      }
+
+      (window as any).logout = logout;
+    </script>
+  </body>
+</html>

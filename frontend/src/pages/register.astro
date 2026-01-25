@@ -1,0 +1,189 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+---
+
+<MainLayout title="Register - Handshake">
+  <div class="min-h-[80vh] flex items-center justify-center py-12 px-6">
+    <div class="max-w-md w-full">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold mb-2">Create Account</h1>
+        <p class="text-gray-600">Join Handshake Marketplace today</p>
+      </div>
+
+      <div class="card p-8" id="register-card">
+        <form id="register-form" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+            <input
+              type="text"
+              name="name"
+              required
+              class="input"
+              placeholder="John Doe"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <input
+              type="email"
+              name="email"
+              required
+              class="input"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              minlength="6"
+              class="input"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div id="error-message" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+          <button type="submit" class="btn btn-primary w-full" id="register-submit">
+            Create Account
+          </button>
+        </form>
+
+        <p class="mt-6 text-center text-sm text-gray-600">
+          Already have an account?
+          <a href="/login" class="text-primary font-semibold hover:underline">Login</a>
+        </p>
+      </div>
+
+      <div id="verify-card" class="card p-8 hidden">
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-3xl">📧</span>
+          </div>
+          <h2 class="text-2xl font-bold mb-2">Check Your Email</h2>
+          <p class="text-gray-600" id="verify-email-text"></p>
+        </div>
+
+        <form id="verify-form" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2 text-center">
+              Enter 6-digit verification code
+            </label>
+            <input
+              type="text"
+              name="code"
+              required
+              maxlength="6"
+              pattern="[0-9]{6}"
+              class="input text-center text-2xl font-bold tracking-widest"
+              placeholder="000000"
+            />
+          </div>
+
+          <div id="verify-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+
+          <button type="submit" class="btn btn-primary w-full" id="verify-submit">
+            Verify Email
+          </button>
+        </form>
+
+        <p class="mt-4 text-center text-sm text-gray-600">
+          Didn't receive the code?
+          <button id="resend-btn" class="text-primary font-semibold hover:underline">
+            Resend
+          </button>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { register, verifyEmail } from '../utils/api';
+
+    const registerForm = document.getElementById('register-form') as HTMLFormElement;
+    const verifyForm = document.getElementById('verify-form') as HTMLFormElement;
+    const registerCard = document.getElementById('register-card');
+    const verifyCard = document.getElementById('verify-card');
+    const errorDiv = document.getElementById('error-message');
+    const verifyError = document.getElementById('verify-error');
+    const verifyEmailText = document.getElementById('verify-email-text');
+
+    let userEmail = '';
+
+    const registerSubmit = document.getElementById('register-submit') as HTMLButtonElement | null;
+    const verifySubmit = document.getElementById('verify-submit') as HTMLButtonElement | null;
+
+    const registerDefaultLabel = registerSubmit?.textContent ?? 'Create Account';
+    const verifyDefaultLabel = verifySubmit?.textContent ?? 'Verify Email';
+
+    function setButtonLoading(button: HTMLButtonElement | null, isLoading: boolean, loadingLabel: string, defaultLabel: string) {
+      if (!button) return;
+
+      if (isLoading) {
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner" aria-hidden="true"></span>${loadingLabel}`;
+      } else {
+        button.disabled = false;
+        button.textContent = defaultLabel;
+      }
+    }
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (errorDiv) errorDiv.classList.add('hidden');
+
+      const formData = new FormData(registerForm);
+      const name = formData.get('name') as string;
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+
+      setButtonLoading(registerSubmit, true, 'Creating...', registerDefaultLabel);
+
+      try {
+        await register(email, password, name);
+        userEmail = email;
+
+        if (registerCard && verifyCard && verifyEmailText) {
+          registerCard.classList.add('hidden');
+          verifyCard.classList.remove('hidden');
+          verifyEmailText.textContent = `We sent a verification code to ${email}`;
+        }
+      } catch (error) {
+        if (errorDiv) {
+          errorDiv.textContent = 'Registration failed. Email may already be in use.';
+          errorDiv.classList.remove('hidden');
+        }
+      } finally {
+        setButtonLoading(registerSubmit, false, 'Creating...', registerDefaultLabel);
+      }
+    });
+
+    verifyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (verifyError) verifyError.classList.add('hidden');
+
+      const formData = new FormData(verifyForm);
+      const code = formData.get('code') as string;
+
+      setButtonLoading(verifySubmit, true, 'Verifying...', verifyDefaultLabel);
+
+      try {
+        await verifyEmail(userEmail, code);
+        window.location.href = '/login?verified=true';
+      } catch (error) {
+        if (verifyError) {
+          verifyError.textContent = 'Invalid or expired code. Please try again.';
+          verifyError.classList.remove('hidden');
+        }
+      } finally {
+        setButtonLoading(verifySubmit, false, 'Verifying...', verifyDefaultLabel);
+      }
+    });
+  </script>
+</MainLayout>
