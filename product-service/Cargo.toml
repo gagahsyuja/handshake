@@ -1,0 +1,20 @@
+[package]
+name = "handshake_product"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = { version = "0.5", features = ["json"] }
+diesel = { version = "2.2", features = ["postgres", "r2d2", "chrono"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonwebtoken = "9.3"
+chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+r2d2 = "0.8"
+reqwest = { version = "0.12", features = ["json"] }
+rocket_cors = "0.6.0"
+
+[dependencies.rocket_sync_db_pools]
+version = "0.1"
+features = ["diesel_postgres_pool"]
