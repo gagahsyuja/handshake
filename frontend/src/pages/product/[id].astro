@@ -1,14 +1,7 @@
 ---
-import type { GetStaticPaths } from "astro";
 import MainLayout from '../../layouts/MainLayout.astro';
-import { getProducts } from '../../utils/api';
 
-export async function getStaticPaths() {
-	const products = await getProducts(undefined, 1000);
-	return products.map(p => ({
-	  params: { id: String(p.id) }
-	}));
-};
+export const prerender = false;
 
 const { id } = Astro.params;
 const productId = Number(id);

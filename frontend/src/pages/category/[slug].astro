@@ -1,16 +1,9 @@
 ---
 import MainLayout from "../../layouts/MainLayout.astro";
-import { getCategories } from "../../utils/api";
 
-// Pre-render all category pages at build time (static output).
-export async function getStaticPaths() {
-  const categories = await getCategories();
-  return categories.map((c) => ({
-    params: { slug: c.slug },
-  }));
-}
+export const prerender = false;
 
-const slug = Astro.params.slug ?? "";
+const { slug } = Astro.params;
 const safeSlug = String(slug);
 ---
 
