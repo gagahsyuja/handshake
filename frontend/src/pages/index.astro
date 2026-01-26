@@ -2,7 +2,17 @@
 import MainLayout from '../layouts/MainLayout.astro';
 import { getCategories } from '../utils/api';
 
-const categories = await getCategories();
+let categories: Awaited<ReturnType<typeof getCategories>> = [];
+
+try {
+  categories = await getCategories();
+} catch (e) {
+  console.warn(
+    "[index] Failed to fetch categories at build time. Rendering homepage with no categories.",
+    e,
+  );
+  categories = [];
+}
 ---
 
 <MainLayout title="Handshake - Buy & Sell with COD">
