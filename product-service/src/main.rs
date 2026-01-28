@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod db;
+pub mod health;
 pub mod models;
 pub mod routes;
 pub mod schema;
@@ -46,6 +47,7 @@ async fn main() -> Result<(), rocket::Error> {
         // .attach(CORS)
         .attach(cors)
         .attach(db::DbConn::fairing())
+        .mount("/", routes![health::live, health::ready])
         .mount(
             "/products",
             routes![

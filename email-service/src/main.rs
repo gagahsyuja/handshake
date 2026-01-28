@@ -1,3 +1,4 @@
+pub mod health;
 pub mod routes;
 pub mod smtp;
 
@@ -42,6 +43,7 @@ async fn main() -> Result<(), rocket::Error> {
     let _rocket = rocket::build()
         // .attach(CORS)
         .attach(cors)
+        .mount("/", routes![health::live, health::ready])
         .mount(
             "/",
             routes![
