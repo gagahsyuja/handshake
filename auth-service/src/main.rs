@@ -7,8 +7,9 @@ pub mod routes;
 pub mod schema;
 
 use rocket::fairing::{Fairing, Info, Kind};
+use rocket::figment::value::{Map, Value};
 use rocket::http::Header;
-use rocket::{catchers, routes};
+use rocket::routes;
 use rocket::{Request, Response};
 use rocket_cors::CorsOptions;
 
@@ -41,9 +42,20 @@ impl Fairing for CORS {
 async fn main() -> Result<(), rocket::Error> {
     dotenv::dotenv().ok();
 
+    let database_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set (e.g. in .env)");
+
+    let mut db: Map<String, Value> = Map::new();
+    db.insert("url".to_string(), database_url.into());
+
+    let mut databases: Map<String, Value> = Map::new();
+    databases.insert("auth_db".to_string(), db.into());
+
+    let figment = rocket::Config::figment().merge(("databases", databases));
+
     let cors = CorsOptions::default().to_cors().unwrap();
 
-    let _rocket = rocket::build()
+    let _rocket = rocket::custom(figment)
         // .attach(CORS)
         .attach(cors)
         .attach(db::DbConn::fairing())
