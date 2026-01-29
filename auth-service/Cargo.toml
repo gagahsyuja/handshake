@@ -13,7 +13,7 @@ bcrypt = "0.16"
 chrono = { version = "0.4", features = ["serde"] }
 dotenv = "0.15"
 r2d2 = "0.8"
-lettre = "0.11"
+reqwest = { version = "0.11", features = ["json"] }
 rand = "0.8"
 rocket_cors = "0.6.0"
 

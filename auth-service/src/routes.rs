@@ -116,6 +116,7 @@ pub async fn register(
 
     // Send verification email
     send_verification_email(&user.email, &user.name, &otp_code)
+        .await
         .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(MessageResponse {
@@ -268,6 +269,7 @@ pub async fn resend_otp(
 
     // Send verification email
     send_verification_email(&user.email, &user.name, &otp_code)
+        .await
         .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(MessageResponse {
