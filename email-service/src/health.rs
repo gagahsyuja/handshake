@@ -3,8 +3,7 @@ use rocket::serde::json::Json;
 use rocket::get;
 use serde::Serialize;
 use std::env;
-use std::net::{TcpStream, ToSocketAddrs};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -24,19 +23,18 @@ pub struct LiveResponse {
 pub struct ReadyResponse {
     pub status: HealthStatus,
     pub service: &'static str,
-    pub smtp: SmtpCheck,
+    pub mailjet: MailjetCheck,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SmtpCheck {
+pub struct MailjetCheck {
     pub ok: bool,
-    pub host: String,
-    pub port: u16,
+    pub credentials_configured: bool,
     pub latency_ms: Option<u128>,
     pub error: Option<String>,
 }
 
-/// Liveness probe
+/// Liveness probe - just checks if the service is running
 #[get("/live")]
 pub fn live() -> Json<LiveResponse> {
     Json(LiveResponse {
@@ -45,77 +43,103 @@ pub fn live() -> Json<LiveResponse> {
     })
 }
 
-/// Readiness probe
+/// Readiness probe - checks if Mailjet is configured and reachable
 #[get("/ready")]
-pub fn ready() -> (Status, Json<ReadyResponse>) {
-    let (host, port) = smtp_host_port_from_env();
+pub async fn ready() -> (Status, Json<ReadyResponse>) {
+    // Check if Mailjet credentials are configured
+    let api_key = env::var("MAILJET_API_KEY");
+    let secret_key = env::var("MAILJET_SECRET_KEY");
+    let from_email = env::var("FROM_EMAIL");
 
-    let (smtp_ok, latency_ms, err) = match tcp_connect_check(&host, port, smtp_timeout()) {
-        Ok(ms) => (true, Some(ms), None),
-        Err(e) => (false, None, Some(e)),
-    };
+    let credentials_configured = api_key.is_ok() && secret_key.is_ok() && from_email.is_ok();
 
-    let status = if smtp_ok {
-        HealthStatus::Ok
-    } else {
-        HealthStatus::Down
-    };
+    if !credentials_configured {
+        return (
+            Status::ServiceUnavailable,
+            Json(ReadyResponse {
+                status: HealthStatus::Down,
+                service: "email-service",
+                mailjet: MailjetCheck {
+                    ok: false,
+                    credentials_configured: false,
+                    latency_ms: None,
+                    error: Some("Mailjet credentials not configured (MAILJET_API_KEY, MAILJET_SECRET_KEY, FROM_EMAIL required)".to_string()),
+                },
+            }),
+        );
+    }
 
-    let http_status = if smtp_ok {
-        Status::Ok
-    } else {
-        Status::ServiceUnavailable
-    };
+    // Check Mailjet API connectivity
+    let start = Instant::now();
+    let mailjet_check = check_mailjet_api().await;
 
-    (
-        http_status,
-        Json(ReadyResponse {
-            status,
-            service: "email-service",
-            smtp: SmtpCheck {
-                ok: smtp_ok,
-                host,
-                port,
-                latency_ms,
-                error: err,
-            },
-        }),
-    )
+    match mailjet_check {
+        Ok(latency) => (
+            Status::Ok,
+            Json(ReadyResponse {
+                status: HealthStatus::Ok,
+                service: "email-service",
+                mailjet: MailjetCheck {
+                    ok: true,
+                    credentials_configured: true,
+                    latency_ms: Some(latency),
+                    error: None,
+                },
+            }),
+        ),
+        Err(e) => (
+            Status::ServiceUnavailable,
+            Json(ReadyResponse {
+                status: HealthStatus::Down,
+                service: "email-service",
+                mailjet: MailjetCheck {
+                    ok: false,
+                    credentials_configured: true,
+                    latency_ms: Some(start.elapsed().as_millis()),
+                    error: Some(e),
+                },
+            }),
+        ),
+    }
 }
 
-fn smtp_host_port_from_env() -> (String, u16) {
-    let host = env::var("SMTP_HOST").unwrap_or_else(|_| "smtp.gmail.com".to_string());
-    let port: u16 = env::var("SMTP_PORT")
-        .unwrap_or_else(|_| "587".to_string())
-        .parse()
-        .unwrap_or(587);
-    (host, port)
-}
+/// Check Mailjet API connectivity by calling the API version endpoint
+async fn check_mailjet_api() -> Result<u128, String> {
+    use base64::engine::general_purpose;
+    use base64::Engine;
 
-fn smtp_timeout() -> Duration {
-    // Optional env override, in milliseconds.
-    // Example: SMTP_HEALTH_TIMEOUT_MS=1000
-    let ms: u64 = env::var("SMTP_HEALTH_TIMEOUT_MS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(1500);
-    Duration::from_millis(ms)
-}
+    let api_key = env::var("MAILJET_API_KEY")
+        .map_err(|_| "MAILJET_API_KEY not set".to_string())?;
+    let secret_key = env::var("MAILJET_SECRET_KEY")
+        .map_err(|_| "MAILJET_SECRET_KEY not set".to_string())?;
 
-fn tcp_connect_check(host: &str, port: u16, timeout: Duration) -> Result<u128, String> {
-    // Resolve host first so we can provide a clear error.
-    let addr_str = format!("{}:{}", host, port);
-    let mut addrs = addr_str
-        .to_socket_addrs()
-        .map_err(|e| format!("DNS resolution failed for {}: {}", addr_str, e))?;
-
-    let addr = addrs
-        .next()
-        .ok_or_else(|| format!("No socket addresses found for {}", addr_str))?;
+    let auth = general_purpose::STANDARD.encode(format!("{}:{}", api_key, secret_key));
 
     let start = Instant::now();
-    TcpStream::connect_timeout(&addr, timeout)
-        .map_err(|e| format!("TCP connect failed to {}: {}", addr_str, e))?;
 
-    Ok(start.elapsed().as_millis())
+    // Call Mailjet API to check connectivity
+    // Using a lightweight endpoint that doesn't send email
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client
+        .get("https://api.mailjet.com/v3/REST/contact")
+        .header("Authorization", format!("Basic {}", auth))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to connect to Mailjet API: {}", e))?;
+
+    let latency = start.elapsed().as_millis();
+
+    // Check if authentication was successful
+    let status = response.status();
+    if status.is_success() || status.as_u16() == 200 {
+        Ok(latency)
+    } else if status.as_u16() == 401 {
+        Err("Mailjet API authentication failed - check credentials".to_string())
+    } else {
+        Err(format!("Mailjet API returned status: {}", status))
+    }
 }
