@@ -15,10 +15,12 @@ function isServer(): boolean {
 
 // Get config from process.env (server-side only)
 function getServerConfig(): RuntimeConfig {
+  // Safely access process.env only on server
+  const env = typeof process !== 'undefined' ? process.env : {};
   return {
-    AUTH_SERVICE: process.env.AUTH_SERVICE || process.env.PUBLIC_AUTH_SERVICE || "http://localhost:8001",
-    PRODUCT_SERVICE: process.env.PRODUCT_SERVICE || process.env.PUBLIC_PRODUCT_SERVICE || "http://localhost:8002",
-    ORDER_SERVICE: process.env.ORDER_SERVICE || process.env.PUBLIC_ORDER_SERVICE || "http://localhost:8003",
+    AUTH_SERVICE: env.AUTH_SERVICE || env.PUBLIC_AUTH_SERVICE || "http://localhost:8001",
+    PRODUCT_SERVICE: env.PRODUCT_SERVICE || env.PUBLIC_PRODUCT_SERVICE || "http://localhost:8002",
+    ORDER_SERVICE: env.ORDER_SERVICE || env.PUBLIC_ORDER_SERVICE || "http://localhost:8003",
   };
 }
 
