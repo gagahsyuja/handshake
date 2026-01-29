@@ -1,55 +1,138 @@
-use lettre::message::header::ContentType;
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::{Message, SmtpTransport, Transport};
+use base64::engine::general_purpose;
+use base64::Engine;
+use reqwest;
+use serde::{Deserialize, Serialize};
 use std::env;
 use tera::{Context, Tera};
 
 pub struct EmailConfig {
-    pub smtp_host: String,
-    pub smtp_port: u16,
-    pub smtp_username: String,
-    pub smtp_password: String,
-    pub smtp_from: String,
+    pub mailjet_api_key: String,
+    pub mailjet_secret_key: String,
+    pub from_email: String,
+    pub from_name: String,
 }
 
 impl EmailConfig {
     pub fn from_env() -> Result<Self, String> {
         Ok(EmailConfig {
-            smtp_host: env::var("SMTP_HOST").unwrap_or_else(|_| "smtp.gmail.com".to_string()),
-            smtp_port: env::var("SMTP_PORT")
-                .unwrap_or_else(|_| "587".to_string())
-                .parse()
-                .unwrap_or(587),
-            smtp_username: env::var("SMTP_USERNAME").map_err(|_| "SMTP_USERNAME not set")?,
-            smtp_password: env::var("SMTP_PASSWORD").map_err(|_| "SMTP_PASSWORD not set")?,
-            smtp_from: env::var("SMTP_FROM")
+            mailjet_api_key: env::var("MAILJET_API_KEY")
+                .map_err(|_| "MAILJET_API_KEY not set")?,
+            mailjet_secret_key: env::var("MAILJET_SECRET_KEY")
+                .map_err(|_| "MAILJET_SECRET_KEY not set")?,
+            from_email: env::var("FROM_EMAIL")
                 .unwrap_or_else(|_| "noreply@handshake.local".to_string()),
+            from_name: env::var("FROM_NAME")
+                .unwrap_or_else(|_| "Handshake Marketplace".to_string()),
         })
     }
 }
 
-pub fn send_email(to_email: &str, subject: &str, body: String) -> Result<(), String> {
+#[derive(Debug, Serialize)]
+struct MailjetRecipient {
+    #[serde(rename = "Email")]
+    email: String,
+    #[serde(rename = "Name", skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct MailjetMessage {
+    #[serde(rename = "From")]
+    from: MailjetRecipient,
+    #[serde(rename = "To")]
+    to: Vec<MailjetRecipient>,
+    #[serde(rename = "Subject")]
+    subject: String,
+    #[serde(rename = "HTMLPart")]
+    html_part: String,
+}
+
+#[derive(Debug, Serialize)]
+struct MailjetRequest {
+    #[serde(rename = "Messages")]
+    messages: Vec<MailjetMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MailjetResponse {
+    #[serde(rename = "Messages")]
+    messages: Vec<MailjetMessageResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MailjetMessageResponse {
+    #[serde(rename = "Status")]
+    status: String,
+    #[serde(rename = "To", default)]
+    to: Vec<MailjetRecipientResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MailjetRecipientResponse {
+    #[serde(rename = "Email")]
+    email: String,
+    #[serde(rename = "MessageID")]
+    message_id: i64,
+}
+
+pub async fn send_email(to_email: &str, subject: &str, body: String) -> Result<(), String> {
     let config = EmailConfig::from_env()?;
 
-    let email = Message::builder()
-        .from(config.smtp_from.parse().map_err(|_| "Invalid FROM email")?)
-        .to(to_email.parse().map_err(|_| "Invalid TO email")?)
-        .subject(subject)
-        .header(ContentType::TEXT_HTML)
-        .body(body)
-        .map_err(|e| format!("Failed to build email: {}", e))?;
+    let mailjet_request = MailjetRequest {
+        messages: vec![MailjetMessage {
+            from: MailjetRecipient {
+                email: config.from_email,
+                name: Some(config.from_name),
+            },
+            to: vec![MailjetRecipient {
+                email: to_email.to_string(),
+                name: None,
+            }],
+            subject: subject.to_string(),
+            html_part: body,
+        }],
+    };
 
-    let creds = Credentials::new(config.smtp_username, config.smtp_password);
+    let client = reqwest::Client::new();
+    let auth = general_purpose::STANDARD.encode(format!(
+        "{}:{}",
+        config.mailjet_api_key, config.mailjet_secret_key
+    ));
 
-    let mailer = SmtpTransport::starttls_relay(&config.smtp_host)
-        .map_err(|e| format!("Failed to create SMTP transport: {}", e))?
-        .port(config.smtp_port)
-        .credentials(creds)
-        .build();
+    let response = client
+        .post("https://api.mailjet.com/v3.1/send")
+        .header("Authorization", format!("Basic {}", auth))
+        .header("Content-Type", "application/json")
+        .json(&mailjet_request)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request to Mailjet: {}", e))?;
 
-    mailer
-        .send(&email)
-        .map_err(|e| format!("Failed to send email: {}", e))?;
+    let status = response.status();
+    
+    if !status.is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unable to read error response".to_string());
+        return Err(format!(
+            "Mailjet API error ({}): {}",
+            status, error_body
+        ));
+    }
+
+    let mailjet_response: MailjetResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Mailjet response: {}", e))?;
+
+    if let Some(message) = mailjet_response.messages.first() {
+        if message.status != "success" {
+            return Err(format!("Mailjet message status: {}", message.status));
+        }
+    } else {
+        return Err("No messages in Mailjet response".to_string());
+    }
 
     Ok(())
 }

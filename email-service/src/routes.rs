@@ -35,13 +35,14 @@ pub struct EmailResponse {
 }
 
 #[post("/send-verification", data = "<request>")]
-pub fn send_verification(
+pub async fn send_verification(
     request: Json<VerificationEmailRequest>,
 ) -> Result<Json<EmailResponse>, Status> {
     let body = render_verification_email(&request.to_name, &request.verification_code)
         .map_err(|_| Status::InternalServerError)?;
 
     send_email(&request.to_email, "Verify your Handshake account", body)
+        .await
         .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(EmailResponse {
@@ -51,7 +52,7 @@ pub fn send_verification(
 }
 
 #[post("/send-order-notification", data = "<request>")]
-pub fn send_order_notification(
+pub async fn send_order_notification(
     request: Json<OrderNotificationRequest>,
 ) -> Result<Json<EmailResponse>, Status> {
     let body = render_order_notification(
@@ -67,6 +68,7 @@ pub fn send_order_notification(
         &format!("Order Confirmation - {}", request.product_title),
         body,
     )
+    .await
     .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(EmailResponse {
@@ -76,8 +78,9 @@ pub fn send_order_notification(
 }
 
 #[post("/send-custom", data = "<request>")]
-pub fn send_custom_email(request: Json<CustomEmailRequest>) -> Result<Json<EmailResponse>, Status> {
+pub async fn send_custom_email(request: Json<CustomEmailRequest>) -> Result<Json<EmailResponse>, Status> {
     send_email(&request.to_email, &request.subject, request.body.clone())
+        .await
         .map_err(|_| Status::InternalServerError)?;
 
     Ok(Json(EmailResponse {
