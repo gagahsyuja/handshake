@@ -1,10 +1,65 @@
-// API service URLs
-const AUTH_SERVICE =
-  import.meta.env.PUBLIC_AUTH_SERVICE || "http://localhost:8001";
-const PRODUCT_SERVICE =
-  import.meta.env.PUBLIC_PRODUCT_SERVICE || "http://localhost:8002";
-const ORDER_SERVICE =
-  import.meta.env.PUBLIC_ORDER_SERVICE || "http://localhost:8003";
+// Runtime configuration
+interface RuntimeConfig {
+  AUTH_SERVICE: string;
+  PRODUCT_SERVICE: string;
+  ORDER_SERVICE: string;
+}
+
+let configCache: RuntimeConfig | null = null;
+let configPromise: Promise<RuntimeConfig> | null = null;
+
+// Check if we're running on the server (Node.js)
+function isServer(): boolean {
+  return typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+}
+
+// Get config from process.env (server-side only)
+function getServerConfig(): RuntimeConfig {
+  return {
+    AUTH_SERVICE: process.env.AUTH_SERVICE || process.env.PUBLIC_AUTH_SERVICE || "http://localhost:8001",
+    PRODUCT_SERVICE: process.env.PRODUCT_SERVICE || process.env.PUBLIC_PRODUCT_SERVICE || "http://localhost:8002",
+    ORDER_SERVICE: process.env.ORDER_SERVICE || process.env.PUBLIC_ORDER_SERVICE || "http://localhost:8003",
+  };
+}
+
+// Fetch runtime configuration from API endpoint or process.env
+async function getConfig(): Promise<RuntimeConfig> {
+  // If running on server, read directly from process.env
+  if (isServer()) {
+    return getServerConfig();
+  }
+
+  // Client-side: return cached config if available
+  if (configCache) {
+    return configCache;
+  }
+
+  // Return existing promise if already fetching
+  if (configPromise) {
+    return configPromise;
+  }
+
+  // Fetch config from API endpoint
+  configPromise = fetch('/api/config')
+    .then(res => res.json())
+    .then(config => {
+      configCache = config;
+      configPromise = null;
+      return config;
+    })
+    .catch(error => {
+      console.error('Failed to fetch runtime config:', error);
+      configPromise = null;
+      // Return defaults if fetch fails
+      return {
+        AUTH_SERVICE: "http://localhost:8001",
+        PRODUCT_SERVICE: "http://localhost:8002",
+        ORDER_SERVICE: "http://localhost:8003",
+      };
+    });
+
+  return configPromise;
+}
 
 export interface Order {
   id: number;
@@ -80,7 +135,8 @@ export interface AuthResponse {
 
 // Auth API
 export async function register(email: string, password: string, name: string) {
-  const response = await fetch(`${AUTH_SERVICE}/register`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.AUTH_SERVICE}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, name }),
@@ -90,7 +146,8 @@ export async function register(email: string, password: string, name: string) {
 }
 
 export async function verifyEmail(email: string, code: string) {
-  const response = await fetch(`${AUTH_SERVICE}/verify-email`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.AUTH_SERVICE}/verify-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, code }),
@@ -103,7 +160,8 @@ export async function login(
   email: string,
   password: string,
 ): Promise<AuthResponse> {
-  const response = await fetch(`${AUTH_SERVICE}/login`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.AUTH_SERVICE}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -113,7 +171,8 @@ export async function login(
 }
 
 export async function getMe(token: string): Promise<User> {
-  const response = await fetch(`${AUTH_SERVICE}/me`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.AUTH_SERVICE}/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error("Failed to get user");
@@ -122,7 +181,8 @@ export async function getMe(token: string): Promise<User> {
 
 // Product API
 export async function getCategories(): Promise<Category[]> {
-  const response = await fetch(`${PRODUCT_SERVICE}/categories`);
+  const config = await getConfig();
+  const response = await fetch(`${config.PRODUCT_SERVICE}/categories`);
   if (!response.ok) throw new Error("Failed to fetch categories");
   return response.json();
 }
@@ -131,17 +191,19 @@ export async function getProducts(
   categoryId?: number,
   limit = 20,
 ): Promise<Product[]> {
+  const config = await getConfig();
   const params = new URLSearchParams();
   if (categoryId) params.append("category_id", categoryId.toString());
   params.append("limit", limit.toString());
 
-  const response = await fetch(`${PRODUCT_SERVICE}/products?${params}`);
+  const response = await fetch(`${config.PRODUCT_SERVICE}/products?${params}`);
   if (!response.ok) throw new Error("Failed to fetch products");
   return response.json();
 }
 
 export async function getProduct(id: number): Promise<Product> {
-  const response = await fetch(`${PRODUCT_SERVICE}/products/${id}`);
+  const config = await getConfig();
+  const response = await fetch(`${config.PRODUCT_SERVICE}/products/${id}`);
   if (!response.ok) throw new Error("Failed to fetch product");
   return response.json();
 }
@@ -150,8 +212,9 @@ export async function getCategoryProducts(
   slug: string,
   limit = 20,
 ): Promise<Product[]> {
+  const config = await getConfig();
   const response = await fetch(
-    `${PRODUCT_SERVICE}/categories/${slug}/products?limit=${limit}`,
+    `${config.PRODUCT_SERVICE}/categories/${slug}/products?limit=${limit}`,
   );
   if (!response.ok) throw new Error("Failed to fetch category products");
   return response.json();
@@ -167,7 +230,8 @@ export async function createProduct(
     image_url?: string;
   },
 ): Promise<Product> {
-  const response = await fetch(`${PRODUCT_SERVICE}/products`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.PRODUCT_SERVICE}/products`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -192,7 +256,8 @@ export async function createOrder(
     };
   },
 ) {
-  const response = await fetch(`${ORDER_SERVICE}/orders`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/orders`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -205,7 +270,8 @@ export async function createOrder(
 }
 
 export async function getOrder(token: string, id: number): Promise<Order> {
-  const response = await fetch(`${ORDER_SERVICE}/orders/${id}`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/orders/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error("Failed to fetch order");
@@ -213,7 +279,8 @@ export async function getOrder(token: string, id: number): Promise<Order> {
 }
 
 export async function getMyOrders(token: string): Promise<Order[]> {
-  const response = await fetch(`${ORDER_SERVICE}/orders/my-orders`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/orders/my-orders`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error("Failed to fetch orders");
@@ -222,7 +289,8 @@ export async function getMyOrders(token: string): Promise<Order[]> {
 
 // Geocode API
 export async function geocodeAddress(address: string): Promise<GeocodeResult> {
-  const response = await fetch(`${ORDER_SERVICE}/geocode/address`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/geocode/address`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ address }),
@@ -235,7 +303,8 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<GeocodeResult> {
-  const response = await fetch(`${ORDER_SERVICE}/geocode/reverse`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/geocode/reverse`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ latitude, longitude }),
@@ -248,7 +317,8 @@ export async function upsertMyLocation(
   token: string,
   data: { latitude: number; longitude: number; address: string },
 ): Promise<LocationUpsertResponse> {
-  const response = await fetch(`${ORDER_SERVICE}/locations/me`, {
+  const config = await getConfig();
+  const response = await fetch(`${config.ORDER_SERVICE}/locations/me`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
