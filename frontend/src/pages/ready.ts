@@ -12,7 +12,7 @@ type CheckResult = {
 };
 
 function envUrl(key: string): string | undefined {
-  const raw = import.meta.env[key];
+  const raw = process.env[key];
   if (typeof raw !== "string") return undefined;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : undefined;
@@ -86,16 +86,17 @@ async function checkService(
 }
 
 export const GET: APIRoute = async () => {
-  // These are provided by `.env`:
-  // PUBLIC_AUTH_SERVICE=http://localhost:8001
-  // PUBLIC_PRODUCT_SERVICE=http://localhost:8002
-  // PUBLIC_ORDER_SERVICE=http://localhost:8003
-  // PUBLIC_EMAIL_SERVICE=http://localhost:8004
+  // These are provided by `.env` or system environment:
+  // AUTH_SERVICE=http://localhost:8001
+  // PRODUCT_SERVICE=http://localhost:8002
+  // ORDER_SERVICE=http://localhost:8003
   //
-  const authBase = envUrl("PUBLIC_AUTH_SERVICE");
-  const productBase = envUrl("PUBLIC_PRODUCT_SERVICE");
-  const orderBase = envUrl("PUBLIC_ORDER_SERVICE");
-  const emailBase = envUrl("PUBLIC_EMAIL_SERVICE");
+  // Note: EMAIL_SERVICE is not checked here as it's already checked by auth-service
+  //
+  // Also supports legacy PUBLIC_* prefix for backward compatibility
+  const authBase = envUrl("AUTH_SERVICE") || envUrl("PUBLIC_AUTH_SERVICE");
+  const productBase = envUrl("PRODUCT_SERVICE") || envUrl("PUBLIC_PRODUCT_SERVICE");
+  const orderBase = envUrl("ORDER_SERVICE") || envUrl("PUBLIC_ORDER_SERVICE");
 
   const timeoutMs = (() => {
     const v = envUrl("READY_TIMEOUT_MS");
@@ -107,7 +108,6 @@ export const GET: APIRoute = async () => {
     checkService("auth-service", authBase, timeoutMs),
     checkService("product-service", productBase, timeoutMs),
     checkService("order-service", orderBase, timeoutMs),
-    checkService("email-service", emailBase, timeoutMs),
   ]);
 
   const allOk = checks.every((c) => c.ok);

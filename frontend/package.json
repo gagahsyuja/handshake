@@ -6,19 +6,22 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro check && astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "serve": "node --env-file=.env dist/server/entry.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^9.5.2",
     "@astrojs/svelte": "^7.2.5",
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.15",
+    "dotenv": "^17.2.3",
     "leaflet": "^1.9.4",
     "svelte": "^5.22.0",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.3",
+    "@types/node": "^25.1.0",
     "typescript": "^5.6.2"
   }
 }
