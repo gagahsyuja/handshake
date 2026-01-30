@@ -1,5 +1,5 @@
 name: Build and Push Product Service
-run-name: Build and Push Image to Registry
+run-name: Build and Push Product Service Image to Registry
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
