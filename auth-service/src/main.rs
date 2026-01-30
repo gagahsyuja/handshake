@@ -13,7 +13,7 @@ use rocket::figment::value::{Map, Value};
 use rocket::http::Header;
 use rocket::routes;
 use rocket::{Request, Response};
-use rocket_cors::CorsOptions;
+use rocket_cors::{AllowedOrigins, CorsOptions};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
@@ -85,7 +85,17 @@ async fn main() -> Result<(), rocket::Error> {
 
     let figment = rocket::Config::figment().merge(("databases", databases));
 
-    let cors = CorsOptions::default().to_cors().unwrap();
+    let allowed_origins = AllowedOrigins::some_exact(
+        &[
+            app_url,
+            "http://localhost:3000".to_string()
+        ]
+    );
+
+    let cors = CorsOptions::default()
+        .allowed_origins(allowed_origins)
+        .to_cors()
+        .unwrap();
 
     let _rocket = rocket::custom(figment)
         // .attach(CORS)
