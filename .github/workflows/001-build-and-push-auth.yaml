@@ -79,7 +79,10 @@ jobs:
     name: Make changes to infra
     needs:
       - auth-build
-    if: needs.auth-build.outputs.files-changed == 'true'
+    if: >-
+      ${{ needs.auth-build.outputs.files-changed == 'true'
+        || github.event_name == 'workflow_dispatch'
+      }}
     runs-on: arc-runner-set
     steps:
       -
