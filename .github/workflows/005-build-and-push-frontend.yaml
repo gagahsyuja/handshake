@@ -8,7 +8,7 @@ concurrency:
 on:
   push:
     branches:
-      - master
+      - development
   workflow_dispatch:
 
 jobs:
@@ -71,3 +71,39 @@ jobs:
         if: steps.frontend-changes.outputs.any_changed == 'false'
         run: |
           echo "No changes to frontend, build skipped!"
+
+  update-infra:
+    name: Make changes to infra
+    needs:
+      - frontend-build
+    if: needs.frontend-build.outputs.files-changed == 'true'
+    runs-on: arc-runner-set
+    steps:
+      -
+        name: Checkout infra code
+        uses: actions/checkout@v4
+        with:
+          repository: gagahsyuja/handshake-infra
+          ref: master
+          persist-credentials: true
+          token: ${{ secrets.INFRA_TOKEN }}
+      -
+        name: Update image tag
+        uses: mikefarah/yq@v4
+        with:
+          cmd: >-
+            yq
+            --inplace
+            --output-format yaml
+            '.frontend.image.tag = "${{ needs.frontend-build.outputs.short-sha }}"'
+            values/values-development.yaml
+      -
+        name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        env:
+          SHORT_SHA: ${{ needs.frontend-build.outputs.short-sha }}
+          COMMIT_URL: ${{ format('gagahsyuja/handshake@{0}', needs.frontend-build.outputs.short-sha) }}
+        with:
+          repository: .
+          commit_message: "Update frontend image tag to `${{ env.SHORT_SHA}}`, ${{ env.COMMIT_URL }}"
+          skip_push: false
